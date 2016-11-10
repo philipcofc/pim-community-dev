@@ -1,5 +1,8 @@
 #!groovy
 
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+
 stage 'Prepare build'
 node {
     step([$class: 'GitHubSetCommitStatusBuilder'])
@@ -45,16 +48,14 @@ userInput = input(message: 'Launch acceptance tests?', parameters: [
 node {
     unstash "project_files"
 
-    sh "/usr/bin/php7.0 /var/lib/distributed-ci/dci-master/bin/build" +
-        " -p " + userInput['php_version'] +
-        " -m " + userInput['mysql_version'] +
-        " " + env.WORKSPACE +
-        " " + env.BUILD_NUMBER +
-        " pim-community-dev" +
-        " " + userInput['storage'] +
-        " " + userInput['features'] +
-        " pim-community-dev/job/" + env.JOB_BASE_NAME +
-        " " + userInput['attempts']
+    // Set composer.json
+    if ('5.6' != userInput['php_version']) {
+        sh "composer require --no-update \"alcaeus/mongo-php-adapter\":\"1.0.*\""
+    }
+
+    // Install the vendors and launch the DCI build
+    sh "composer update --optimize-autoloader --no-interaction --no-progress --prefer-dist --ignore-platform-reqs"
+    sh "/usr/bin/php7.0 /var/lib/distributed-ci/dci-master/bin/build -p ${userInput['php_version']} -m ${userInput['mysql_version']} ${env.WORKSPACE} ${env.BUILD_NUMBER} pim-community-dev ${userInput['storage']} ${userInput['features']} pim-enterprise-dev/job/${env.JOB_BASE_NAME} ${userInput['attempts']}"
 }
 
 stage 'Results'
